@@ -20,8 +20,8 @@ Ext.define('CustomApp', {
     logger: new Rally.technicalservices.Logger(),
     items: [
         {xtype:'container',itemId:'selector_box', margin: 5, padding: 5},
-        {xtype:'container',itemId:'chart_box', margin: 10, padding: 10},
-        {xtype:'tsinfolink',informationHtml:"<strong>Super-Customizable Date-Driven Area Chart</strong>"}
+        {xtype:'container',itemId:'chart_box', margin: 10, padding: 10}
+        //{xtype:'tsinfolink',informationHtml:"<strong>Super-Customizable Date-Driven Area Chart</strong>"}
     ],
     onScopeChange: function(scope) {
       this.config.start_date = scope.getRecord().get('StartDate');
