@@ -1,5 +1,6 @@
 Ext.define('CustomApp', {
-    extend: 'Rally.app.App',
+    extend: 'Rally.app.TimeboxScopedApp',
+    scopeType: 'iteration',
     componentCls: 'app',
     key: 'rally.techservices.supercfd',
     config: {
@@ -22,6 +23,12 @@ Ext.define('CustomApp', {
         {xtype:'container',itemId:'chart_box', margin: 10, padding: 10},
         {xtype:'tsinfolink',informationHtml:"<strong>Super-Customizable Date-Driven Area Chart</strong>"}
     ],
+    onScopeChange: function(scope) {
+      this.config.start_date = scope.getRecord().get('StartDate');
+      this.config.end_date   = scope.getRecord().get('EndDate');
+      this.config.query_string = '(Iteration.Name = "' + scope.getRecord().get('Name') + '")';
+      this._reCalculate();
+    },
     launch: function() {
         this.logger.log("Launched with context", this.getContext(), "and config", this.config);
         var me = this;
@@ -52,15 +59,16 @@ Ext.define('CustomApp', {
                 if ( prefs && prefs[me.key] ) {
                     me.config = Ext.JSON.decode(prefs[me.key]);
                     if ( typeof(me.config.start_date) == "string" ) {
-                        me.config.start_date = Rally.util.DateTime.fromIsoString(me.config.start_date);
+                        me.config.start_date = me.getContext().getTimeboxScope().getRecord().get('StartDate');
                     }
                     if ( typeof(me.config.end_date) == "string" ) {
-                        me.config.end_date = Rally.util.DateTime.fromIsoString(me.config.end_date);
+                        me.config.end_date = me.getContext().getTimeboxScope().getRecord().get('EndDate');
                     }
+                    me.config.query_string = '(Iteration.Name = "' + me.getContext().getTimeboxScope().getRecord().get('Name') + '")';
                     me._reCalculate();
                 }
             }
-        });    
+        });
     },
     _getPITypes: function() {
         var me = this;
@@ -76,7 +84,7 @@ Ext.define('CustomApp', {
                         {Name:'Defect',Value:'Defect'},
                         {Name:'Task',Value:'Task'}
                     ];
-                    
+
                     Ext.Array.each(types, function(type){
                         me.config.artifact_types.push({
                             Name:type.get('DisplayName'),
@@ -93,7 +101,7 @@ Ext.define('CustomApp', {
         if ( this.dialog ) { this.dialog.destroy(); }
         var config = this.config;
         var me = this;
-        
+
         this.dialog = Ext.create('Rally.technicalservices.SettingsDialog',{
             model_type: config.model_type,
             group_by_field_name: config.group_by_field_name,
@@ -108,7 +116,7 @@ Ext.define('CustomApp', {
                     this.logger.log("new config",this.config);
                     if ( this.config.start_date < new Date(2011,10,11) ) { this.config.start_date = new Date(2011,10,11); }
                     if ( this.config.end_date < new Date(2011,10,11) ) { this.config.end_date = new Date(2011,10,11); }
-                    
+
                     var settings = {};
                     settings[this.key] = Ext.JSON.encode(this.config);
                     Rally.data.PreferenceManager.update({
@@ -131,10 +139,10 @@ Ext.define('CustomApp', {
         this.getEl().mask("Loading");
 
         this.config.limit_to_oids = null;
-        
-        if ( this.config.query_string ) { 
+
+        if ( this.config.query_string ) {
             this.logger.log("Using query:",this.config.query_string);
-            
+
             this._limitRecordsByQuery(this.config.model_type, this.config.query_string).then({
                 success: function(oids){
                     me.config.limit_to_oids = oids;
@@ -154,9 +162,9 @@ Ext.define('CustomApp', {
         this.getEl().mask("Loading Filter Data");
 
         var deferred = Ext.create('Deft.Deferred');
-        
+
         var filter = Ext.create('TSStringFilter',{query_string:query_string});
-        
+
         Ext.create('Rally.data.WsapiDataStore',{
             model: model,
             autoLoad: true,
@@ -187,7 +195,7 @@ Ext.define('CustomApp', {
             var oids = this.config.limit_to_oids;
             var oid = snap.get('ObjectID');
             return Ext.Array.contains(oids,oid);
-        } else { 
+        } else {
             return true;
         }
     },
@@ -198,31 +206,31 @@ Ext.define('CustomApp', {
         var config = this.config;
         this.logger.log("Getting array of days between",config.start_date,config.end_date,true,config.day_to_week_switch_point);
         var array_of_days = Rally.technicalservices.util.Utilities.arrayOfDaysBetween(config.start_date,config.end_date,true,config.day_to_week_switch_point);
-        
+
         var promises = _.map(array_of_days,me._getSnapshots,this);
         promises.push(me._getValidFieldChoices(),this);
-        
+
         Deft.Promise.all(promises).then({
             success: function(days) {
                 // got back an array of calculated data for each day (tsday model) (plus the null back from the other call)
                 days.pop();
                 days.pop();
                 me._makeChart(days);
-            }, 
+            },
             failure: function(records) {
                 console.log("oops");
             }
         });
-        
+
     },
     _getValidFieldChoices: function() {
         this.logger.log("_getValidFieldChoices");
         var deferred = Ext.create('Deft.Deferred');
         var config = this.config;
         var me = this;
-        
+
         config.groups = [];
-        
+
         if ( config.group_by_field_type === "BOOLEAN" ) {
             config.groups = ["true","false"];
             deferred.resolve("x");
@@ -239,20 +247,20 @@ Ext.define('CustomApp', {
                             deferred.resolve("x");
                         }
                     });
-                    
+
                 },
                 scope: this
             });
         }
-        
+
         return deferred.promise;
     },
     _getSnapshots:function(day){
         var me = this;
         var config = this.config;
-        
+
         var deferred = Ext.create('Deft.Deferred');
-        
+
         this.logger.log("fetching snapshots at", day);
         var project = this.getContext().getProject().ObjectID;
         var day_calculator = Ext.create('TSDay',{
@@ -260,7 +268,7 @@ Ext.define('CustomApp', {
             groupByFieldName:config.group_by_field_name,
             JSDate: day
         });
-        
+
         if ( day < new Date() ) {
             Ext.create('Rally.data.lookback.SnapshotStore',{
                 fetch: [config.group_by_field_name, config.metric],
@@ -275,7 +283,7 @@ Ext.define('CustomApp', {
                     load: function(store,snaps,success){
                         if (success) {
                             this.logger.log("snaps",snaps);
-    
+
                             Ext.Array.each(snaps, function(snap){
                                 if ( me._shouldUseSnap(snap) ) {
                                     day_calculator.addSnap(snap);
@@ -307,12 +315,12 @@ Ext.define('CustomApp', {
         this.logger.log("_getSeries");
         var group_data = {};
         var series = [];
-        
+
         var groups = this.config.groups;
         Ext.Array.each(groups, function(group){
             group_data[group] = [];
         });
-        
+
         Ext.Array.each(days, function(day){
             if ( day ) {
                 Ext.Array.each(groups,function(group_name){
@@ -324,7 +332,7 @@ Ext.define('CustomApp', {
                 });
             }
         });
-        
+
         Ext.Array.each(groups,function(group_name){
             var display_group_name = group_name;
             if ( group_name == "" ) { display_group_name = "None"; }
@@ -334,7 +342,7 @@ Ext.define('CustomApp', {
                 data: group_data[group_name]
             });
         });
-        
+
         return series;
     },
     /*
@@ -352,21 +360,21 @@ Ext.define('CustomApp', {
     _makeChart: function(days) {
         var me = this;
         var config = this.config;
-        
+
         this.logger.log("_makeChart",days);
-        
+
         this.down('#chart_box').removeAll();
-        
+
         var categories = this._getCategories(days);
         var series = this._getSeries(days);
         var increment = this._getIncrement(days);
-        
+
         this.logger.log('categories',categories);
         this.logger.log('series',series);
-        
-        
+
+
         this.getEl().unmask();
-        
+
         this.down('#chart_box').add({
             xtype:'rallychart',
             chartData: {
@@ -374,7 +382,7 @@ Ext.define('CustomApp', {
                 categories: categories
             },
             chartConfig: {
-                chart: { 
+                chart: {
                     type:'area'
                 },
                 title: {
@@ -408,7 +416,7 @@ Ext.define('CustomApp', {
                     }
                 }
             }
-            
+
         });
         if (this.config.query_string) {
             this.down('#chart_box').add({xtype:'container', html:'Filterd by: ' + this.config.query_string});
