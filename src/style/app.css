@@ -5,3 +5,7 @@
     right:0px;
     width:5%;
 }
+
+td[id^="rallyiterationcombobox-"] {
+  width: 240px !important;
+}
